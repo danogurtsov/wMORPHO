@@ -2,23 +2,20 @@
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
-import {Counter} from "../src/Counter.sol";
+import {WMORPHO} from "../src/WMORPHO.sol";
 
 contract CounterTest is Test {
-    Counter public counter;
+    WMORPHO public wMorpho;
+    address morpho = 0x9994E35Db50125E0DF82e4c2dde62496CE330999;
 
     function setUp() public {
-        counter = new Counter();
-        counter.setNumber(0);
+        vm.createSelectFork(vm.envString("RPC_ETHEREUM"));
+        wMorpho = new WMORPHO(morpho, "wMORPHO", "wMORPHO");
     }
 
-    function test_Increment() public {
-        counter.increment();
-        assertEq(counter.number(), 1);
-    }
-
-    function testFuzz_SetNumber(uint256 x) public {
-        counter.setNumber(x);
-        assertEq(counter.number(), x);
+    function testDeploy() public {
+        assertNotEq(address(wMorpho), address(0));
+        assertEq(morpho, address(wMorpho.MORPHO()));
+        console.log(wMorpho.MORPHO().totalSupply());
     }
 }
