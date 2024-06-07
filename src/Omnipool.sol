@@ -10,7 +10,16 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {IRewardDistributor} from "./interfaces.sol";
 
+/**
+    @title Omnipool
+    @author Conic Finance (with edits by TODO)
+    @notice TODO
+ */
 contract Omnipool is Ownable, ERC4626 {
+
+    /*//////////////////////////////////////////////////////////////
+                                STORAGE
+    //////////////////////////////////////////////////////////////*/
 
     // WEIGHTS
 
@@ -30,13 +39,18 @@ contract Omnipool is Ownable, ERC4626 {
     EnumerableSet.AddressSet vaults;
     uint256 maxVaults = 15;
 
-    address underlying;
+    address public underlying;
 
-    // EVENTS and ERRORS
+    /*//////////////////////////////////////////////////////////////
+                            EVENTS & ERROS
+    //////////////////////////////////////////////////////////////*/
 
     event VaultAdded(address vault);
     event VaultRemoved(address vault);
     event NewWeight(address vault, uint256 weight);
+
+
+
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
