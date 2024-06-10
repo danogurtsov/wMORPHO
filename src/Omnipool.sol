@@ -12,7 +12,7 @@ import {IRewardDistributor} from "./interfaces.sol";
 
 /**
     @title Omnipool
-    @author Conic Finance (with edits by TODO)
+    @author TODO, inspired by Conic Finance and Curve Finance
     @notice TODO
  */
 contract Omnipool is Ownable, ERC4626 {
@@ -40,6 +40,11 @@ contract Omnipool is Ownable, ERC4626 {
     uint256 maxVaults = 15;
 
     address public underlying;
+
+    // REWARDS
+
+    mapping (address user => uint256 integral) public userIntegral;
+    uint256 public totalIntegral;
 
     /*//////////////////////////////////////////////////////////////
                             EVENTS & ERROS
@@ -83,7 +88,7 @@ contract Omnipool is Ownable, ERC4626 {
         address previousPool;
         for (uint256 i; i < newWeights.length; i++) {
             address vault = newWeights[i].vaultAddress;
-            require(vault > previousPool, "pools not sorted");
+            require(vault > previousPool, "pools not sorted"); // TODO, useless requirement
             uint256 newWeight = newWeights[i].weight;
             weights.set(vault, newWeight);
             total += newWeight;

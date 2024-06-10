@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
+
 import {WMORPHO} from "../src/WMORPHO.sol";
 import {Omnipool} from "../src/Omnipool.sol";
 
@@ -31,7 +32,9 @@ contract OmnipoolTest is Test {
         assertEq(omnipool.underlying(), token);
     }
 
-    // VAULTS
+    /*//////////////////////////////////////////////////////////////
+                                 VAULTS
+    //////////////////////////////////////////////////////////////*/
 
     function testAddAllVaults() public {
         omnipool.addVault(vault1);
@@ -70,9 +73,12 @@ contract OmnipoolTest is Test {
         assertEq(omnipool.getVaultAtIndex(2), vault4);
     }
 
-    // WEIGHTS
+    /*//////////////////////////////////////////////////////////////
+                                WEIGHTS
+    //////////////////////////////////////////////////////////////*/
 
-    function testSetNewWeights() public {
+    function testUnsortedWeights() public {
+        // should revert if unsorted
         omnipool.addVault(vault1);
         omnipool.addVault(vault2);
         omnipool.addVault(vault3);
@@ -84,7 +90,8 @@ contract OmnipoolTest is Test {
         omnipool.setNewWeights(newWeights);
     }
 
-    function testSetNewWeights2() public {
+    function testCorrectWeights() public {
+        // should not revert
         omnipool.addVault(vault1);
         omnipool.addVault(vault2);
         omnipool.addVault(vault3);
@@ -93,6 +100,9 @@ contract OmnipoolTest is Test {
         newWeights[1] = Omnipool.VaultWeight(vault3, 35_000);
         newWeights[2] = Omnipool.VaultWeight(vault1, 40_000);
         omnipool.setNewWeights(newWeights);
+        assertEq(omnipool.getWeight(vault2), 25_000);
+        assertEq(omnipool.getWeight(vault3), 35_000);
+        assertEq(omnipool.getWeight(vault1), 40_000);
     }
 
     function testWeightInputs() public {
@@ -115,6 +125,22 @@ contract OmnipoolTest is Test {
         newWeights2[1] = Omnipool.VaultWeight(vault3, 50_000);
         vm.expectRevert();
         omnipool.setNewWeights(newWeights2);
+        // removal: revert if weight set
+        vm.expectRevert();
+        omnipool.removePool(vault2);
+        // removal: success for zero weight vault
+        Omnipool.VaultWeight[] memory newWeights3 = new Omnipool.VaultWeight[](3);
+        newWeights3[0] = Omnipool.VaultWeight(vault2, 0);
+        newWeights3[1] = Omnipool.VaultWeight(vault3, 50_000);
+        newWeights3[2] = Omnipool.VaultWeight(vault1, 50_000);
+        omnipool.setNewWeights(newWeights3);
+        omnipool.removePool(vault2);
+        assertEq(omnipool.getVaultAtIndex(0), vault1);
+        assertEq(omnipool.getVaultAtIndex(1), vault3);
+        assertEq(omnipool.vaultsCount(), 2);
+        vm.expectRevert();
+        omnipool.getVaultAtIndex(2);
+
     }
 
 }
