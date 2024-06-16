@@ -2,38 +2,81 @@
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC4626,SafeERC20} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 
 import {WMORPHO} from "../src/WMORPHO.sol";
 import {Omnipool} from "../src/Omnipool.sol";
 
+import {IRewardDistributor, IMetaMorpho} from "../src/interfaces.sol";
+
 contract OmnipoolTest is Test {
+
+    using SafeERC20 for IERC20;
 
     struct VaultWeight {
         address vaultAddress;
         uint256 weight;
     }
 
-    address token = 0xdAC17F958D2ee523a2206206994597C13D831ec7; // USDT
+    address underlying = 0xdAC17F958D2ee523a2206206994597C13D831ec7; // USDT
+    uint256 decimals;
 
-    address vault1 = 0xbEef047a543E45807105E51A8BBEFCc5950fcfBa; // Steakhous USDT
+    address vault1 = 0xbEef047a543E45807105E51A8BBEFCc5950fcfBa; // Steakhouse USDT
     address vault2 = 0x2C25f6C25770fFEC5959D34B94Bf898865e5D6b1; // Flagship USDT
     address vault3 = 0x95EeF579155cd2C5510F312c8fA39208c3Be01a8; // Re7 USDT
     address vault4 = 0x8CB3649114051cA5119141a34C200D65dc0Faa73; // Gauntlet USDT
 
+    address user1 = address(101);
+    address user2 = address(102);
 
     Omnipool omnipool;
 
     function setUp() public {
         vm.createSelectFork(vm.envString("RPC_ETHEREUM"));
-        omnipool = new Omnipool(token, "tokenPool", "tokenPool");
+        omnipool = new Omnipool(underlying, "tokenPool", "tokenPool");
+        decimals = 10 ** ERC20(underlying).decimals();
     }
 
     function testDeploy() public {
-        assertEq(omnipool.underlying(), token);
+        assertEq(omnipool.underlying(), underlying);
+    }
+
+    function _setUpWeights() public {
+        omnipool.addVault(vault1);
+        omnipool.addVault(vault2);
+        omnipool.addVault(vault3);
+        omnipool.addVault(vault4);
+        Omnipool.VaultWeight[] memory newWeights = new Omnipool.VaultWeight[](4);
+        newWeights[0] = Omnipool.VaultWeight(vault1, 10_000);
+        newWeights[1] = Omnipool.VaultWeight(vault2, 20_000);
+        newWeights[2] = Omnipool.VaultWeight(vault3, 30_000);
+        newWeights[3] = Omnipool.VaultWeight(vault4, 40_000);
+        omnipool.setNewWeights(newWeights);
+        uint256 initialAmount = 1_000_000 * decimals;
+        deal(underlying, user1, initialAmount);
+        deal(underlying, user2, initialAmount);
+        vm.prank(user1);
+        IERC20(underlying).forceApprove(address(omnipool), initialAmount);
+        vm.prank(user2);
+        IERC20(underlying).forceApprove(address(omnipool), initialAmount);
+    }
+    
+    /*//////////////////////////////////////////////////////////////
+                                DEPOSIT
+    //////////////////////////////////////////////////////////////*/
+
+    function testDeposit() public {
+        _setUpWeights();
+        vm.prank(user1);
+        uint256 amount = 10_000 * decimals;
+        omnipool.deposit(amount);
+        assertApproxEqAbs(omnipool.balance(), amount, 10);
     }
 
     /*//////////////////////////////////////////////////////////////
-                                 VAULTS
+                            VAULTS SETTERS
     //////////////////////////////////////////////////////////////*/
 
     function testAddAllVaults() public {
@@ -76,19 +119,6 @@ contract OmnipoolTest is Test {
     /*//////////////////////////////////////////////////////////////
                                 WEIGHTS
     //////////////////////////////////////////////////////////////*/
-
-    function testUnsortedWeights() public {
-        // should revert if unsorted
-        omnipool.addVault(vault1);
-        omnipool.addVault(vault2);
-        omnipool.addVault(vault3);
-        Omnipool.VaultWeight[] memory newWeights = new Omnipool.VaultWeight[](3);
-        newWeights[0] = Omnipool.VaultWeight(vault1, 25_000);
-        newWeights[1] = Omnipool.VaultWeight(vault2, 35_000);
-        newWeights[2] = Omnipool.VaultWeight(vault3, 40_000);
-        vm.expectRevert();
-        omnipool.setNewWeights(newWeights);
-    }
 
     function testCorrectWeights() public {
         // should not revert

@@ -8,7 +8,9 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {IRewardDistributor} from "./interfaces.sol";
+import {IRewardDistributor, IMetaMorpho} from "./interfaces.sol";
+
+import {Test, console} from "forge-std/Test.sol";
 
 /**
     @title Omnipool
@@ -16,6 +18,8 @@ import {IRewardDistributor} from "./interfaces.sol";
     @notice TODO
  */
 contract Omnipool is Ownable, ERC4626 {
+
+    using SafeERC20 for IERC20;
 
     /*//////////////////////////////////////////////////////////////
                                 STORAGE
@@ -47,7 +51,7 @@ contract Omnipool is Ownable, ERC4626 {
     uint256 public totalIntegral;
 
     /*//////////////////////////////////////////////////////////////
-                            EVENTS & ERROS
+                            EVENTS & ERRORS
     //////////////////////////////////////////////////////////////*/
 
     event VaultAdded(address vault);
@@ -74,7 +78,33 @@ contract Omnipool is Ownable, ERC4626 {
     //////////////////////////////////////////////////////////////*/
 
     function rebalance() public {
+    }
 
+    function balance() public returns(uint256) {
+        uint256 total;
+        for (uint256 i; i < weights.length(); i++) {
+            (address vault, ) = weights.at(i);
+            uint256 shares = IERC20(vault).balanceOf(address(this));
+            uint256 assets =  IERC4626(vault).convertToAssets(shares);
+            total += assets;
+        }
+        return total;
+    }
+
+    function deposit(uint256 _amountUnderlying) public {
+        IERC20(underlying).safeTransferFrom(msg.sender, address(this),_amountUnderlying);
+        for (uint256 i; i < weights.length(); i++) {
+            (address vault, uint256 weight) = weights.at(i);
+            _deposit(vault, _amountUnderlying * weight / totalWeight);
+        }
+    }
+
+    function _deposit(address _vault, uint256 _amountUnderlying) internal {
+        IMetaMorpho(_vault).deposit(_amountUnderlying, address(this));
+    }
+
+    function _withdraw(address _vault, uint256 _amountUnderlying) internal {
+        IMetaMorpho(_vault).withdraw(_amountUnderlying, address(this), address(this));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -84,11 +114,10 @@ contract Omnipool is Ownable, ERC4626 {
     function setNewWeights(VaultWeight[] memory newWeights) public onlyOwner {
         require(newWeights.length == vaults.length(), "invalid pool weights");
         uint256 total;
-
         address previousPool;
         for (uint256 i; i < newWeights.length; i++) {
             address vault = newWeights[i].vaultAddress;
-            require(vault > previousPool, "pools not sorted"); // TODO, useless requirement
+            require(weights.contains(vault));
             uint256 newWeight = newWeights[i].weight;
             weights.set(vault, newWeight);
             total += newWeight;
@@ -100,10 +129,12 @@ contract Omnipool is Ownable, ERC4626 {
     }
 
     function addVault(address _vault) public onlyOwner {
+        require(IMetaMorpho(_vault).asset() == underlying);
         require(vaults.length() < maxVaults, "Max vaults reached");
         require(!vaults.contains(_vault), "Vault already added");
         if (!weights.contains(_vault)) weights.set(_vault, 0);
         require(vaults.add(_vault), "failed to add pool");
+        IERC20(underlying).forceApprove(_vault, type(uint256).max);
         emit VaultAdded(_vault);
     }
 
@@ -111,9 +142,10 @@ contract Omnipool is Ownable, ERC4626 {
         require(vaults.contains(_vault), "Vault not added");
         require(vaults.length() > 1, "Cannot remove the last vault");
         uint256 weight = weights.get(_vault);
-        require(weight == 0, "Vault has weight set");
+        require(weight == 0, "Vault has weight set, should be removed first");
         require(vaults.remove(_vault), "Vault not removed");
         require(weights.remove(_vault), "weight not removed");
+        IERC20(underlying).forceApprove(_vault, 0);
         emit VaultRemoved(_vault);
     }
 
